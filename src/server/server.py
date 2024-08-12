@@ -1,9 +1,11 @@
 import socket
 import threading
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog
+import uuid  # 用于生成唯一ID
 import asyncio
 import websockets
+import os  # 导入os模块以获取文件大小
 
 # 多语言支持
 translations = {
@@ -20,7 +22,11 @@ translations = {
         'websocket_disconnected': 'A WebSocket client has disconnected.',
         'tcp_server_stopped': 'TCP Server stopped.',
         'ws_server_stopped': 'WebSocket Server stopped. Please restart the application to stop WebSocket server.',
-        'select_language': 'Select Language:',  # 新增翻译
+        'select_language': 'Select Language:',
+        'user_id_query': 'User ID for {} is {}',
+        'file_sent': 'File sent successfully!',
+        'file_received': 'File received: {}',
+        'file_error': 'Error sending file.',
     },
     'zh': {
         'tcp_host': 'TCP 主机:',
@@ -35,7 +41,11 @@ translations = {
         'websocket_disconnected': '一个 WebSocket 客户端已断开连接。',
         'tcp_server_stopped': 'TCP 服务器已停止。',
         'ws_server_stopped': 'WebSocket 服务器已停止。请重新启动应用程序以停止 WebSocket 服务器。',
-        'select_language': '选择语言:',  # 新增翻译
+        'select_language': '选择语言:',
+        'user_id_query': '{}的用户ID是{}',
+        'file_sent': '文件发送成功！',
+        'file_received': '接收到文件：{}',
+        'file_error': '发送文件出错。'
     },
     'ru': {
         'tcp_host': 'TCP Хост:',
@@ -50,12 +60,15 @@ translations = {
         'websocket_disconnected': 'WebSocket клиент отключился.',
         'tcp_server_stopped': 'TCP сервер остановлен.',
         'ws_server_stopped': 'WebSocket сервер остановлен. Пожалуйста, перезапустите приложение, чтобы остановить WebSocket сервер.',
-        'select_language': 'Выберите язык:',  # 新增翻译
+        'select_language': 'Выберите язык:',
+        'user_id_query': 'ID пользователя {} это {}',
+        'file_sent': 'Файл успешно отправлен!',
+        'file_received': 'Файл получен: {}',
+        'file_error': 'Ошибка при отправке файла.'
     }
 }
 
 current_language = 'en'  # 默认语言
-
 clients = []  # 用于存储TCP连接的客户端
 websocket_clients = []  # 用于存储WebSocket连接的客户端
 tcp_server = None
@@ -66,11 +79,11 @@ def handle_client(client_socket):
     while True:
         try:
             message = client_socket.recv(1024).decode('utf-8')  # 接收来自客户端的消息
-            if message:
+            if message.startswith("FILE:"):  # 检查是否是文件传输请求
+                handle_file_transfer(client_socket, message)
+            else:
                 broadcast(message, client_socket)  # 广播消息
                 update_chat(f"{translations[current_language]['client_connected']}: {message}")  # 更新聊天记录
-            else:
-                break
         except Exception as e:
             print(f"Error: {e}")
             break
@@ -78,6 +91,31 @@ def handle_client(client_socket):
     client_socket.close()
     clients.remove(client_socket)
     update_chat(translations[current_language]['client_disconnected'])
+
+# 处理文件传输
+def handle_file_transfer(client_socket, message):
+    file_info = message.split(":")
+    if len(file_info) < 3:
+        update_chat(translations[current_language]['file_error'])
+        return
+
+    file_name = file_info[1]
+    file_size = int(file_info[2])
+
+    # 接收文件内容
+    with open(file_name, 'wb') as f:
+        bytes_received = 0
+        while bytes_received < file_size:
+            file_data = client_socket.recv(1024)
+            if not file_data:
+                break  # 如果没有收到数据，退出
+            f.write(file_data)
+            bytes_received += len(file_data)
+
+    if bytes_received == file_size:  # 确保接收的文件大小与预期一致
+        update_chat(translations[current_language]['file_received'].format(file_name))
+    else:
+        update_chat(translations[current_language]['file_error'])
 
 # 广播消息到TCP客户端
 def broadcast(message, sender_socket):
@@ -174,6 +212,28 @@ def update_texts():
     stop_button.config(text=translations[current_language]['stop_servers'])
     language_label.config(text=translations[current_language]['select_language'])  # 更新语言标签文本
 
+# 发送文件
+def send_file():
+    file_path = filedialog.askopenfilename()
+    if file_path:
+        file_name = os.path.basename(file_path)  # 使用os.path.basename获取文件名
+        file_size = os.path.getsize(file_path)
+        message = f"FILE:{file_name}:{file_size}"
+
+        # 发送文件信息
+        for client in clients:
+            client.send(message.encode('utf-8'))
+
+        # 发送文件内容
+        with open(file_path, 'rb') as f:
+            bytes_data = f.read(1024)
+            while bytes_data:
+                for client in clients:
+                    client.send(bytes_data)  # 发送文件数据
+                bytes_data = f.read(1024)
+
+        update_chat(translations[current_language]['file_sent'])
+
 # 创建GUI
 root = tk.Tk()
 root.title("3306 Server")
@@ -219,6 +279,9 @@ start_ws_button.pack(side=tk.LEFT, padx=5)
 
 stop_button = ttk.Button(button_frame, text=translations[current_language]['stop_servers'], command=stop_servers)
 stop_button.pack(side=tk.LEFT, padx=5)
+
+send_file_button = ttk.Button(button_frame, text='Send File', command=send_file)
+send_file_button.pack(side=tk.LEFT, padx=5)
 
 # 语言选择下拉框
 language_frame = ttk.Frame(root)
