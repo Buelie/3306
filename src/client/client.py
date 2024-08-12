@@ -2,6 +2,7 @@ import socket
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
+import uuid  # 导入uuid模块以生成唯一ID
 
 class ChatClient:
     def __init__(self, master):
@@ -16,6 +17,7 @@ class ChatClient:
         self.master.resizable(False, False)  # 禁用最小化按钮，允许垂直调整大小
         self.language = 'en'
         self.nickname = ""
+        self.user_id = None  # 用于存储用户唯一ID
         self.sent_messages = []  # 存储发送的消息
         self.reply_to_message = None  # 当前回复的消息
 
@@ -64,6 +66,23 @@ class ChatClient:
         self.status_label = ttk.Label(connection_frame, text=self.get_text('status_disconnected'), foreground='red')
         self.status_label.grid(row=4, columnspan=2, pady=(10, 0))
 
+        # 新增用于显示用户ID的标签
+        self.user_id_label = ttk.Label(connection_frame, text="User ID: Not Connected", foreground='blue')
+        self.user_id_label.grid(row=5, columnspan=2, pady=(10, 0))
+
+        # 新增用于查询用户ID的标签和输入框
+        self.query_user_id_frame = ttk.LabelFrame(self.master, text=self.get_text('query_user_id'), padding=(10, 10))
+        self.query_user_id_frame.pack(padx=10, pady=(0, 10), fill='x')
+
+        self.query_nickname_label = ttk.Label(self.query_user_id_frame, text=self.get_text('nickname'))
+        self.query_nickname_label.grid(row=0, column=0, pady=(10, 0), sticky=tk.W)
+
+        self.query_nickname_entry = ttk.Entry(self.query_user_id_frame, width=entry_width)
+        self.query_nickname_entry.grid(row=0, column=1, pady=(10, 0), padx=(0, 10))
+
+        self.query_user_id_button = ttk.Button(self.query_user_id_frame, text=self.get_text('query_user_id'), command=self.query_user_id)
+        self.query_user_id_button.grid(row=0, column=2, pady=(10, 0))
+
         self.chat_frame = ttk.LabelFrame(self.master, text=self.get_text('chat_area'), padding=(10, 10))
         self.chat_frame.pack(padx=10, pady=(0, 10), fill='both', expand=True)
 
@@ -99,6 +118,9 @@ class ChatClient:
         self.file_button = ttk.Button(self.input_frame, text=self.get_text('send_file'), command=self.send_file)
         self.file_button.pack(side=tk.RIGHT, padx=(10, 0))
 
+        self.send_file_to_user_button = ttk.Button(self.input_frame, text=self.get_text('send_file_to_user'), command=self.send_file_to_user)
+        self.send_file_to_user_button.pack(side=tk.RIGHT, padx=(10, 0))
+
         self.reply_button = ttk.Button(self.input_frame, text=self.get_text('reply'), command=self.reply_to_last_message)
         self.reply_button.pack(side=tk.RIGHT, padx=(10, 0))
 
@@ -133,7 +155,7 @@ class ChatClient:
     def show_program_info(self):
         program_info = (
             "程序名称: 聊天客户端\n"  # "Program Name: Chat Client" translated
-            "版本: Alpha_0.0.2_V29\n"  # "Version: 1.0.0" translated
+            "版本: Release_0.0.1_V1\n"  # "Version: 1.0.0" translated
             "作者: (GitHub) Buelie\n"  # "Author: (GitHub) Buelie" translated"
             "作者: (Bilibili) 腾海QWQ\n"  # "Author: (Bilibili) 腾海QWQ" translated"
             "作者: (QQ) 账号已封禁&陆御\n"  # "Author: (QQ) 账号已封禁&陆御" translated"
@@ -164,6 +186,16 @@ class ChatClient:
                 'de': 'Datei senden',
                 'ja': 'ファイル送信',
                 'ko': '파일 전송'
+            },
+            'send_file_to_user': {
+                'en': 'Send File to User',
+                'zh': '发送文件给用户',
+                'ru': 'Отправить файл пользователю',
+                'fr': 'Envoyer un fichier à l\'utilisateur',
+                'es': 'Enviar archivo al usuario',
+                'de': 'Datei an Benutzer senden',
+                'ja': 'ユーザーにファイルを送信',
+                'ko': '사용자에게 파일 전송'
             },
             'send_private': {
                 'en': 'Send Private',
@@ -329,7 +361,7 @@ class ChatClient:
                 'en': 'Error receiving message',
                 'zh': '接收消息出错',
                 'ru': 'Ошибка получения сообщения',
-                'fr': 'Erreur lors de la réception du message',
+                'fr': 'Erreur lors de la réception du сообщения',
                 'es': 'Error al recibir el mensaje',
                 'de': 'Fehler beim Empfang der Nachricht',
                 'ja': 'メッセージの受信エラー',
@@ -419,7 +451,7 @@ class ChatClient:
                 'en': 'Error sending file.',
                 'zh': '发送文件出错。',
                 'ru': 'Ошибка при отправке файла.',
-                'fr': 'Erreur lors de l\'envoi du fichier.',
+                'fr': 'Erreur lors de l\'envoi du файла.',
                 'es': 'Error al enviar el archivo.',
                 'de': 'Fehler beim Senden der Datei.',
                 'ja': 'ファイル送信中にエラーが発生しました。',
@@ -485,6 +517,16 @@ class ChatClient:
                 'ja': 'チャット履歴が正常にエクスポートされました！',
                 'ko': '채팅 기록이 성공적으로 내보내졌습니다!'
             },
+            'query_user_id': {
+                'en': 'Query User ID',
+                'zh': '查询用户ID',
+                'ru': 'Запросить ID пользователя',
+                'fr': 'Demander l\'ID utilisateur',
+                'es': 'Consultar ID de usuario',
+                'de': 'Benutzer-ID abfragen',
+                'ja': 'ユーザーIDを照会',
+                'ko': '사용자 ID 조회'
+            },
         }
         return translations[key].get(self.language)
 
@@ -502,20 +544,28 @@ class ChatClient:
         self.chat_frame.config(text=self.get_text('chat_area'))
         self.send_button.config(text=self.get_text('send'))
         self.file_button.config(text=self.get_text('send_file'))
+        self.send_file_to_user_button.config(text=self.get_text('send_file_to_user'))  # 更新发送文件按钮
         self.reply_button.config(text=self.get_text('reply'))
         self.recall_button.config(text=self.get_text('recall'))
         self.private_message_frame.config(text=self.get_text('private_message'))
         self.private_nickname_label.config(text=self.get_text('private_nickname'))
         self.send_private_button.config(text=self.get_text('send_private'))
-        # 移除对不存在的 emoji_window 的引用
         self.export_button.config(text=self.get_text('export_chat'))  # 更新导出按钮文本
         self.status_label.config(text=self.get_text('status_disconnected'), foreground='red')  # 初始状态为未连接
+        self.query_nickname_label.config(text=self.get_text('nickname'))  # 更新查询标签
+        self.query_user_id_button.config(text=self.get_text('query_user_id'))  # 更新查询按钮文本
+
+    def generate_user_id(self):
+        return str(uuid.uuid4())
 
     def connect_to_server(self):
         self.nickname = self.nickname_entry.get().strip()
         if not self.nickname:
             messagebox.showwarning("Warning", self.get_text('nickname_warning'))
             return
+
+        # 生成用户唯一ID
+        self.user_id = self.generate_user_id()
 
         address = self.address_entry.get()
         port = self.port_entry.get()
@@ -533,6 +583,9 @@ class ChatClient:
             self.is_connected = True
             self.status_label.config(text=self.get_text('status_connected'), foreground='green')
 
+            # 更新用户ID标签
+            self.user_id_label.config(text=f"User ID: {self.user_id}")
+
             self.receive_thread = threading.Thread(target=self.receive_messages, daemon=True)
             self.receive_thread.start()
 
@@ -540,6 +593,19 @@ class ChatClient:
             messagebox.showerror("Error", self.get_text('port_error'))
         except Exception as e:
             messagebox.showerror("Error", f"{self.get_text('connection_error')}: {e}")
+
+    def query_user_id(self):
+        if not self.client_socket:
+            messagebox.showwarning("Warning", self.get_text('not_connected_warning'))
+            return
+
+        nickname_to_query = self.query_nickname_entry.get().strip()
+        if nickname_to_query:
+            # 发送查询请求给服务器
+            query_message = f"QUERY_ID:{nickname_to_query}"
+            self.client_socket.send(query_message.encode('utf-8'))
+        else:
+            messagebox.showwarning("Warning", self.get_text('please_enter_private_message'))
 
     def save_chat_history(self):
         with open("chat_history.txt", "a", encoding='utf-8') as f:
@@ -562,7 +628,7 @@ class ChatClient:
 
         message = self.entry.get()
         if message:
-            full_message = f"{self.nickname}: {message}"
+            full_message = f"{self.user_id}:{self.nickname}: {message}"  # 添加用户ID到消息中
             self.client_socket.send(full_message.encode('utf-8'))
             self.sent_messages.append(full_message)  # 保存发送的消息
             self.entry.delete(0, tk.END)
@@ -581,7 +647,7 @@ class ChatClient:
         recipient_nickname = self.private_nickname_entry.get().strip()
         message = self.private_message_entry.get().strip()
         if recipient_nickname and message:
-            full_message = f"@{recipient_nickname}: {message}"
+            full_message = f"@{recipient_nickname}:{self.user_id}:{self.nickname}: {message}"
             self.client_socket.send(full_message.encode('utf-8'))
             self.private_message_entry.delete(0, tk.END)  # 清空输入框
 
@@ -607,6 +673,28 @@ class ChatClient:
             except Exception as e:
                 messagebox.showerror("Error", self.get_text('file_error'))
 
+    def send_file_to_user(self):
+        if not self.client_socket:
+            messagebox.showwarning("Warning", self.get_text('not_connected_warning'))
+            return
+
+        recipient_nickname = self.private_nickname_entry.get().strip()
+        if recipient_nickname:
+            file_path = filedialog.askopenfilename()
+            if file_path:
+                try:
+                    with open(file_path, 'rb') as file:
+                        file_data = file.read()
+                        full_message = f"FILE_TO:{recipient_nickname}:{self.user_id}:{self.nickname}:" + file_data.decode('latin-1')  # 将二进制数据编码为字符串
+                        self.client_socket.send(full_message.encode('utf-8'))
+                    self.text_area.configure(state='normal')
+                    self.text_area.insert(tk.END, f"{self.get_text('you')} -> {recipient_nickname}: File sent successfully!\n")
+                    self.text_area.configure(state='disabled')
+                except Exception as e:
+                    messagebox.showerror("Error", self.get_text('file_error'))
+        else:
+            messagebox.showwarning("Warning", "Please specify the recipient's nickname.")
+
     def reply_to_last_message(self):
         if self.sent_messages:
             last_message = self.sent_messages[-1]
@@ -629,9 +717,25 @@ class ChatClient:
             try:
                 message = self.client_socket.recv(1024).decode('utf-8')
                 if message:
-                    self.text_area.configure(state='normal')
-                    self.text_area.insert(tk.END, f"{self.get_text('server')}: {message}\n")
-                    self.text_area.configure(state='disabled')
+                    parts = message.split(':', 2)
+                    if len(parts) == 3:
+                        user_id, nickname, msg = parts
+                        self.text_area.configure(state='normal')
+                        self.text_area.insert(tk.END, f"{nickname} (ID: {user_id}): {msg}\n")  # 显示用户昵称和ID
+                        self.text_area.configure(state='disabled')
+                    elif message.startswith("USER_ID:"):
+                        # 处理查询返回的用户ID
+                        nickname, user_id = message.split(':')[1:3]
+                        messagebox.showinfo("User ID", self.get_text('user_id_query').format(nickname, user_id))  # 弹窗显示用户ID
+                    elif message.startswith("FILE_TO:"):
+                        # 处理文件接收逻辑
+                        parts = message.split(':', 4)
+                        recipient_nickname, sender_user_id, sender_nickname, file_data = parts[1], parts[2], parts[3], parts[4]
+                        with open(f"received_file_from_{sender_nickname}.dat", "wb") as f:
+                            f.write(file_data.encode('latin-1'))  # 将字符串解码为字节并保存
+                        self.text_area.configure(state='normal')
+                        self.text_area.insert(tk.END, f"Received file from {sender_nickname}.\n")
+                        self.text_area.configure(state='disabled')
                 else:
                     break
             except Exception as e:
